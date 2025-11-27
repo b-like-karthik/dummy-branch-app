@@ -2,13 +2,19 @@ services:
   db:
     image: postgres:16
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
       POSTGRES_DB: microloans
+      POSTGRES_SHARED_BUFFERS: ${DB_SHARED_BUFFERS:-128MB}
+    deploy:
+      resources:
+        limits:
+          memory: ${DB_MEMORY_LIMIT:-512m}
+          cpus: ${DB_CPU_LIMIT:-0.5}
     ports:
       - "5432:5432"
     volumes:
-      - db_data:/var/lib/postgresql/data
+      - ${DB_VOLUME_SPEC:-/var/lib/postgresql/data}
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d microloans"]
       interval: 5s
@@ -18,16 +24,29 @@ services:
   api:
     build: .
     environment:
-      FLASK_ENV: development
-      DATABASE_URL: postgresql+psycopg2://postgres:postgres@db:5432/microloans
+      FLASK_ENV: ${ENVIRONMENT:-development}
+      DATABASE_URL: postgresql+psycopg2://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@db:5432/microloans
       PORT: 8000
       PYTHONPATH: /app
+      API_LOG_LEVEL: ${API_LOG_LEVEL:-INFO}
+      API_STRUCTURED_LOGGING: ${API_STRUCTURED_LOGGING:-false}
     depends_on:
       db:
         condition: service_healthy
     ports:
       - "8000:8000"
-    command: gunicorn -w 2 -b 0.0.0.0:8000 wsgi:app
+    volumes:
+      - .:/app
+    command: >
+      sh -c "
+        if [ \"$ENVIRONMENT\" = \"development\" ]; then
+          echo 'Starting development server with hot reload...';
+          python -m flask run --host=0.0.0.0 --port=8000 --reload;
+        else
+          echo 'Starting production server with ${API_WORKERS:-2} workers...';
+          gunicorn -w $${API_WORKERS:-2} -b 0.0.0.0:8000 wsgi:app;
+        fi
+      "
 
   nginx:
     image: nginx:alpine
@@ -42,4 +61,5 @@ services:
 
 
 volumes:
-  db_data:
+  staging_db_data:
+  prod_db_data:
