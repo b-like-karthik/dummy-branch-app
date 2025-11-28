@@ -40,7 +40,6 @@ jobs:
     name: Build Stage
     runs-on: ubuntu-latest
     needs: test
-    # Run for both PRs and pushes to main
     if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
     
     steps:
@@ -55,7 +54,6 @@ jobs:
         with:
           context: .
           push: false
-          # Tag with git commit SHA (first 8 characters for readability)
           tags: |
             ${{ env.IMAGE_NAME }}:${{ github.sha }}
             ${{ env.IMAGE_NAME }}:${{ github.sha | slice: 0, 8 }}
@@ -64,7 +62,6 @@ jobs:
 
       - name: Save image for next stages
         run: |
-          # Save both full SHA and short SHA versions
           docker save ${{ env.IMAGE_NAME }}:${{ github.sha }} -o image.tar
         
       - name: Upload built image
