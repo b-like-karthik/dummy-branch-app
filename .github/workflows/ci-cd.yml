@@ -32,62 +32,119 @@ jobs:
           python -m pip install --upgrade pip
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
-      - name: Run Tests
+      - name: Run Tests (if any)
         run: |
-          echo "No tests configured for now."
+          if [ -d tests ] || [ -f test_app.py ]; then
+            echo "Running tests..."
+            pytest --maxfail=1 --disable-warnings -q
+          else
+            echo "No tests found — skipping."
+          fi
 
   build:
     name: Build Stage
-      runs-on: ubuntu-latest
-      needs: test
-      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-      steps:
+    runs-on: ubuntu-latest
+    needs: tests
+    if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    
+    steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Extract branch name
-        id: extract_branch
-        run: |
-          echo "BRANCH_NAME=${GITHUB_REF#refs/heads/}" >> $GITHUB_OUTPUT
-          echo "Extracted branch: ${GITHUB_REF#refs/heads/}"
-
-      - name: Debug - List files
-        run: |
-          echo "Current directory:"
-          pwd
-          echo "Files in directory:"
-          ls -la
-          echo "Dockerfile exists?"
-          ls -la Dockerfile || echo "Dockerfile not found"
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Build Docker image
         uses: docker/build-push-action@v5
         with:
           context: .
           push: false
-          tags: ${{ env.IMAGE_NAME }}:${{ steps.extract_branch.outputs.BRANCH_NAME }}
+          load: true
+          tags: ${{ env.IMAGE_NAME }}:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Debug - List Docker images
+      - name: Save image
         run: |
-          echo "Docker images after build:"
-          docker images
-          echo "Looking for our image:"
-          docker images | grep "${{ secrets.DOCKERHUB_USERNAME }}" || echo "Image not found"
-
-      - name: Save image for next stages
-        run: |
-          echo "Attempting to save image: ${{ env.IMAGE_NAME }}:${{ steps.extract_branch.outputs.BRANCH_NAME }}"
-          docker save ${{ env.IMAGE_NAME }}:${{ steps.extract_branch.outputs.BRANCH_NAME }} -o image.tar
-          
+          docker save ${{ env.IMAGE_NAME }}:${{ github.sha }} -o image.tar
+        
       - name: Upload built image
         uses: actions/upload-artifact@v4
         with:
-          name: docker-image
+          name: docker-image-${{ github.sha }}
           path: image.tar
           retention-days: 1
 
+  scan:
+    name: Security Scan Stage
+    runs-on: ubuntu-latest
+    needs: [tests,build]
+    steps:
+      - name: Download image 
+        uses: actions/download-artifact@v4
+        with:
+          name: docker-image-${{ github.sha }}
+          path: .
+      
+      - name: Load image into local Docker daemon
+        run: |
+          ls -lah
+          docker load -i image.tar
+          docker image ls --no-trunc
+      
+      - name: Install Trivy
+        run: |
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+          trivy --version
+      
+      - name: Scan the image for CRITICAL vulnerabilities
+        env:
+          IMAGE: ${{ env.IMAGE_NAME }}:${{ github.sha }}
+        run: |
+          echo "Scanning image: $IMAGE"
+          trivy image --exit-code 1 --severity CRITICAL --format table "$IMAGE" || {
+            echo "CRITICAL vulnerabilities detected — failing pipeline."
+            exit 1
+          }
+          echo "No CRITICAL vulnerabilities found."
+
+  push_image:
+    name: Push Stage
+    runs-on: ubuntu-latest
+    needs: [tests,build,scan]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - name: Download Image
+        uses: actions/download-artifact@v4
+        with:
+          name: docker-image-${{ github.sha }}
+          path: .
+      
+      - name: Load image into Docker
+        run: |
+          docker load -i image.tar
+          docker image ls --no-trunc
+      
+      - name: Log in Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Tag image for Docker Hub
+        run: |
+          docker tag ${{ env.IMAGE_NAME }}:${{ github.sha }} ${{ env.IMAGE_NAME }}:latest
+
+      - name: Push image to Docker Hub
+        run: |
+          docker push ${{ env.IMAGE_NAME }}:${{ github.sha }}
+          docker push ${{ env.IMAGE_NAME }}:latest
+
+
+  
