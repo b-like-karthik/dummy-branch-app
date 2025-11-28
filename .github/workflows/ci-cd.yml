@@ -38,29 +38,32 @@ jobs:
 
   build:
     name: Build Stage
-    runs-on: ubuntu-latest
-    needs: tests
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-
-    steps:
+      runs-on: ubuntu-latest
+      needs: test
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
-      - name: Set up Docker buildx
-        uses: docker/setup-buildx-action@v3
 
-      - name: Log into Docker hub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
       - name: Extract branch name
         id: extract_branch
         run: |
           echo "BRANCH_NAME=${GITHUB_REF#refs/heads/}" >> $GITHUB_OUTPUT
-      
-      - name: Build docker image
+          echo "Extracted branch: ${GITHUB_REF#refs/heads/}"
+
+      - name: Debug - List files
+        run: |
+          echo "Current directory:"
+          pwd
+          echo "Files in directory:"
+          ls -la
+          echo "Dockerfile exists?"
+          ls -la Dockerfile || echo "Dockerfile not found"
+
+      - name: Build Docker image
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -69,10 +72,18 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Save Image
+      - name: Debug - List Docker images
         run: |
+          echo "Docker images after build:"
+          docker images
+          echo "Looking for our image:"
+          docker images | grep "${{ secrets.DOCKERHUB_USERNAME }}" || echo "Image not found"
+
+      - name: Save image for next stages
+        run: |
+          echo "Attempting to save image: ${{ env.IMAGE_NAME }}:${{ steps.extract_branch.outputs.BRANCH_NAME }}"
           docker save ${{ env.IMAGE_NAME }}:${{ steps.extract_branch.outputs.BRANCH_NAME }} -o image.tar
-      
+          
       - name: Upload built image
         uses: actions/upload-artifact@v4
         with:
