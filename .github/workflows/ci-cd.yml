@@ -84,7 +84,7 @@ jobs:
   scan:
     name: Security Scan Stage
     runs-on: ubuntu-latest
-    needs: build
+    needs: [tests,build]
     steps:
       - name: Download image 
         uses: actions/download-artifact@v4
@@ -113,5 +113,38 @@ jobs:
             exit 1
           }
           echo "No CRITICAL vulnerabilities found."
+
+  push_image:
+    name: Push Stage
+    runs-on: ubuntu-latest
+    needs: [tests,build,scan]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - name: Download Image
+        uses: actions/download-artifact@v4
+        with:
+          name: docker-image-${{ github.sha }}
+          path: .
+      
+      - name: Load image into Docker
+        run: |
+          docker load -i image.tar
+          docker image ls --no-trunc
+      
+      - name: Log in Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Tag image for Docker Hub
+          run: |
+            docker tag ${{ env.IMAGE_NAME }}:${{ github.sha }} ${{ env.IMAGE_NAME }}:latest
+
+      - name: Push image to Docker Hub
+          run: |
+            docker push ${{ env.IMAGE_NAME }}:${{ github.sha }}
+            docker push ${{ env.IMAGE_NAME }}:latest
+
 
   
