@@ -108,7 +108,7 @@ jobs:
           IMAGE: ${{ env.IMAGE_NAME }}:${{ github.sha }}
         run: |
           echo "Scanning image: $IMAGE"
-          trivy image --skip-update --exit-code 1 --severity CRITICAL --format table "$IMAGE" || {
+          trivy image --exit-code 1 --severity CRITICAL --format table "$IMAGE" || {
             echo "CRITICAL vulnerabilities detected — failing pipeline."
             exit 1
           }
