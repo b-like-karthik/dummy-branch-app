@@ -1,0 +1,96 @@
+Navigate to the project directory using 'cd'.
+
+**************************************  PART - 1  *********************************************
+
+To run the application locally:
+    1. Run: 
+        -> docker compose up -d --build
+
+        -> docker compose exec api alembic upgrade head 
+
+        -> docker compose exec api python scripts/seed.py
+
+    2. To see if it is working, open the below urls on any browser:
+        -> https://branchloans.com/health
+        -> https://branchloans.com/api/loans
+        -> https://branchloans.com/api/stats
+
+┌─────────────┐    HTTPS    ┌─────────────┐    HTTP     ┌─────────────┐    SQL      ┌─────────────┐
+│   Browser   │ ──────────→ │   Nginx     │ ──────────→ │  Flask API  │ ──────────→ │ PostgreSQL  │
+│             │ ←────────── │             │ ←────────── │             │ ←────────── │             │
+└─────────────┘   Encrypted └─────────────┘  Internal   └─────────────┘   Database  └─────────────┘
+                   (SSL)                    (Unencrypted)               (Port 5432)
+                 Ports 80/443                 Port 8000
+
+**************************************  PART - 2  *********************************************
+
+To run the service in development environement:
+
+    Execute the following commands:
+
+    -> docker-compose --env-file .env.dev up -d --build
+
+    -> docker compose --env-file .env.dev exec api alembic upgrade head
+
+    -> docker compose exec --env-file .env.dev api python scripts/seed.py
+    
+        - change the code and refresh the page in browser to observe the changes made -> Hot Reload
+
+    - Data is not persisted in this env.
+
+        - To check, run the below commands:
+
+            -> docker-compose --env-file .env.dev down
+
+            -> docker-compose --env-file .env.dev up -d --build
+
+            - Try to access:
+                - https://branchloans.com/api/loans
+                - https://branchloans.com/api/stats
+
+
+To run the service in Staging environement:
+
+    Execute the following commands:
+
+    -> docker-compose --env-file .env.staging up -d --build
+
+                
+To run the service in Production environement:
+
+    Execute the following commands:
+
+    -> docker-compose --env-file .env.prod up -d --build
+
+- To check if the data is persisted in the stage and prod environments:
+    - up the container
+    - seed data
+    - down without clearing volume (dont include -v in the compose down command)
+    - up the container ( now don't seed the data)
+    - check https://branchloans.com/api/stats it will still give output
+
+**************************************  PART - 3  *********************************************
+
+You can check the workflow in .github/workflows/ci-cd.yml file.
+
+To test, 
+    create a branch and checkout to it 
+                |
+                V
+        make changes locally 
+                |
+                V
+             commit 
+                |
+                V
+    push changes to remote repo (github)
+                |
+                V
+            Create a PR
+
+    - You should see the workflow. (last stage - Push Stage will be skipped for PRs)
+    - To see the Push Stage running - merge the PR into main.
+
+************************************************************************************************
+
+Thanks for an amazing assignment!!! (learned a lot of new things)

@@ -1,3 +1,5 @@
+- PLEASE READ "documentation.txt" FOR MORE CLARITY - (PART-4)
+
 # Flask Microloans API + Postgres (Docker)
 
 Minimal REST API for microloans, built with Flask, SQLAlchemy, Alembic, and PostgreSQL (via Docker Compose).
