@@ -1,4 +1,8 @@
-- PLEASE READ "documentation.txt" FOR MORE CLARITY - (PART-4)
+***************************************************************************  
+*                                                                         *
+*     PLEASE READ "documentation.txt" FOR MORE CLARITY - (PART-4)         *
+*                                                                         *
+***************************************************************************
 
 # Flask Microloans API + Postgres (Docker)
 
