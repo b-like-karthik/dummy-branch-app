@@ -4,6 +4,15 @@ Navigate to the project directory using 'cd'.
 
 To run the application locally:
     1. Run: 
+        -> chmod +x scripts/generate-ssl.sh
+
+        -> ./scripts/generate-ssl.sh
+
+        -> sudo nano /etc/hosts
+            - add "127.0.0.1 branchloans.com"
+            - ctrl + o 
+            - ctrl + x
+
         -> docker compose up -d --build
 
         -> docker compose exec api alembic upgrade head 
