@@ -41,7 +41,7 @@ To run the service in development environement:
 
     -> docker compose --env-file .env.dev exec api alembic upgrade head
 
-    -> docker compose exec --env-file .env.dev api python scripts/seed.py
+    -> docker compose --env-file .env.dev exec api python scripts/seed.py
     
         - change the code and refresh the page in browser to observe the changes made -> Hot Reload
 
